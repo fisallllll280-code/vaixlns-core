@@ -270,10 +270,13 @@ class State:
 
 ```
 ∀ execution e:
-  VerificationResult(e).status ∈ {VERIFIED, UNPROVEN}
+  VerificationResult(e).status = VERIFIED
   ∧ Lease(e).status = ACTIVE
   → Execute(e) ✓
 else → Reject(e)
+
+# UNPROVEN is never executable.
+# UNPROVEN means execution is not yet verified and must be rejected/quarantined.
 ```
 
 ### I2: No Orphan State
@@ -429,4 +432,4 @@ Containers:
 
 ---
 
-**No unverified claims. Every component tested and observable.** 🔥
+**No unverified claims. Components are executable only when their verification and runtime evidence exist.**

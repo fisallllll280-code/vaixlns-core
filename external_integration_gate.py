@@ -1,7 +1,7 @@
 """VAIXLNS Core portable external integration gate.
 
-This file intentionally uses only the Python standard library so the core
-boundary can be embedded before higher-level packages are available.
+The module uses only the standard library so it remains usable as a low-level
+constitutional boundary even when the higher runtime stack is unavailable.
 """
 from __future__ import annotations
 
@@ -50,10 +50,13 @@ class ExternalIntegrationGate:
         proof_fresh: bool,
         proof_bound_identity: str | None,
         explicit_authority: bool,
+        forbidden_endpoints: frozenset[str] = frozenset(),
     ) -> GateDecision:
         reasons: list[str] = []
         if spec.kind not in allowed_kinds:
             reasons.append("KIND_FORBIDDEN")
+        if spec.endpoint in forbidden_endpoints:
+            reasons.append("ENDPOINT_FORBIDDEN")
         if not spec.owner:
             reasons.append("OWNER_MISSING")
         if not spec.contract_version:

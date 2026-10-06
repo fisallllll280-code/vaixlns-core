@@ -1,54 +1,33 @@
 from external_integration_gate import ExternalIntegrationGate, IntegrationKind, IntegrationSpec
 
+def make_spec():
+    return IntegrationSpec("model:core:test", IntegrationKind.MODEL, "provider://model",
+                           ("inference",), "v1", "dep:v1", "env:v1", "vaixlns")
 
-def make_spec() -> IntegrationSpec:
-    return IntegrationSpec(
-        identity="model:core:test",
-        kind=IntegrationKind.MODEL,
-        endpoint="provider://model",
-        capabilities=("inference",),
-        contract_version="v1",
-        dependency_fingerprint="dep:v1",
-        environment_fingerprint="env:v1",
-        owner="vaixlns",
-    )
-
+def kwargs(spec, **changes):
+    v=dict(allowed_kinds=frozenset({IntegrationKind.MODEL}),
+           allowed_capabilities=frozenset({"inference"}),
+           proof_identity=spec.identity,
+           proof_dependency_fingerprint=spec.dependency_fingerprint,
+           proof_environment_fingerprint=spec.environment_fingerprint,
+           proof_expires_epoch=200, now_epoch=120, explicit_authority=True)
+    v.update(changes); return v
 
 def test_default_denies_without_fresh_proof_and_authority():
-    d = ExternalIntegrationGate().admit(
-        make_spec(),
-        allowed_kinds=frozenset({IntegrationKind.MODEL}),
-        allowed_capabilities=frozenset({"inference"}),
-        proof_fresh=False,
-        proof_bound_identity=None,
-        explicit_authority=False,
-    )
-    assert d.admitted is False
-    assert "PROOF_NOT_FRESH" in d.reasons
+    s=make_spec(); d=ExternalIntegrationGate().admit(
+        s, **kwargs(s, proof_identity=None, proof_expires_epoch=None, explicit_authority=False))
+    assert not d.admitted and "PROOF_NOT_FRESH" in d.reasons
 
+def test_admits_only_when_all_conditions_hold():
+    s=make_spec(); assert ExternalIntegrationGate().admit(s, **kwargs(s)).admitted
 
-def test_admits_only_when_all_boundary_conditions_hold():
-    spec = make_spec()
-    d = ExternalIntegrationGate().admit(
-        spec,
-        allowed_kinds=frozenset({IntegrationKind.MODEL}),
-        allowed_capabilities=frozenset({"inference"}),
-        proof_fresh=True,
-        proof_bound_identity=spec.identity,
-        explicit_authority=True,
-    )
-    assert d.admitted is True
+def test_capability_change_blocks():
+    s=make_spec()
+    c=IntegrationSpec(**{**s.__dict__,"capabilities":("inference","write")})
+    d=ExternalIntegrationGate().admit(c, **kwargs(s))
+    assert not d.admitted and "CAPABILITY_FORBIDDEN:write" in d.reasons
 
-
-def test_identity_or_capability_change_blocks():
-    spec = make_spec()
-    d = ExternalIntegrationGate().admit(
-        IntegrationSpec(**{**spec.__dict__, "capabilities": ("inference", "write")}),
-        allowed_kinds=frozenset({IntegrationKind.MODEL}),
-        allowed_capabilities=frozenset({"inference"}),
-        proof_fresh=True,
-        proof_bound_identity=spec.identity,
-        explicit_authority=True,
-    )
-    assert d.admitted is False
-    assert "CAPABILITY_FORBIDDEN:write" in d.reasons
+def test_dependency_drift_blocks():
+    s=make_spec(); d=ExternalIntegrationGate().admit(
+        s, **kwargs(s, proof_dependency_fingerprint="dep:v2"))
+    assert not d.admitted and "PROOF_DEPENDENCY_MISMATCH" in d.reasons
